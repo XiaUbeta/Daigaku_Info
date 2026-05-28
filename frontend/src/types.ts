@@ -24,5 +24,9 @@ export interface ProcessedInfo {
   category: string; // 出愿情报, Open Campus, 讲座, 变更, 其他
   summary: string;
   important_dates?: string;
+  target_faculties?: string; // JSON string
+  timeline_events?: string; // JSON string
+  exam_requirements?: string; // JSON string
+  published_at?: string; // Official date from website
   raw_news: RawNews;
 }

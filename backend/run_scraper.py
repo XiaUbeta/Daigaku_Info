@@ -1,15 +1,10 @@
 import os
 import sys
+import json
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.models import domain
-from app.services.scrapers import (
-    WasedaScraper, 
-    UTokyoScraper, KyotoUScraper, OsakaUScraper, TohokuUScraper,
-    HokkaidoUScraper, NagoyaUScraper, TsukubaUScraper, ChibaUScraper,
-    YNUScraper, ScienceTokyoScraper, UECScraper, TUATScraper,
-    KeioScraper, TMUScraper
-)
+from app.services.agentic_scraper import AgenticScraper
 from app.services.llm_agent import llm_pipeline
 import datetime
 import time
@@ -31,37 +26,32 @@ def setup_university(db: Session, name: str, name_en: str, official_url: str, lo
 def run_all_tasks():
     db = SessionLocal()
     try:
-        scrapers_registry = [
-            # Phase 1
-            {"scraper": WasedaScraper(), "name": "早稲田大学", "name_en": "Waseda University", "url": "https://www.waseda.jp/inst/admission/", "logo": ""},
-            # Phase 2
-            {"scraper": UTokyoScraper(), "name": "東京大学", "name_en": "The University of Tokyo", "url": "https://www.u-tokyo.ac.jp/ja/admissions/index.html", "logo": ""},
-            {"scraper": KyotoUScraper(), "name": "京都大学", "name_en": "Kyoto University", "url": "https://www.kyoto-u.ac.jp/ja/admissions", "logo": ""},
-            {"scraper": OsakaUScraper(), "name": "大阪大学", "name_en": "Osaka University", "url": "https://www.osaka-u.ac.jp/ja/admissions", "logo": ""},
-            {"scraper": TohokuUScraper(), "name": "東北大学", "name_en": "Tohoku University", "url": "https://www.tohoku.ac.jp/japanese/studentinfo/admission/", "logo": ""},
-            # Phase 3
-            {"scraper": HokkaidoUScraper(), "name": "北海道大学", "name_en": "Hokkaido University", "url": "https://www.hokudai.ac.jp/", "logo": ""},
-            {"scraper": NagoyaUScraper(), "name": "名古屋大学", "name_en": "Nagoya University", "url": "https://www.nagoya-u.ac.jp/", "logo": ""},
-            {"scraper": TsukubaUScraper(), "name": "筑波大学", "name_en": "University of Tsukuba", "url": "https://www.tsukuba.ac.jp/", "logo": ""},
-            {"scraper": ChibaUScraper(), "name": "千葉大学", "name_en": "Chiba University", "url": "https://www.chiba-u.ac.jp/", "logo": ""},
-            # Phase 4
-            {"scraper": YNUScraper(), "name": "横浜国立大学", "name_en": "Yokohama National University", "url": "https://www.ynu.ac.jp/", "logo": ""},
-            {"scraper": ScienceTokyoScraper(), "name": "東京科学大学", "name_en": "Institute of Science Tokyo", "url": "https://www.isct.ac.jp/ja", "logo": ""},
-            {"scraper": UECScraper(), "name": "電気通信大学", "name_en": "The University of Electro-Communications", "url": "https://www.uec.ac.jp/", "logo": ""},
-            {"scraper": TUATScraper(), "name": "東京農工大学", "name_en": "Tokyo University of Agriculture and Technology", "url": "https://www.tuat.ac.jp/", "logo": ""},
-            # Phase 5
-            {"scraper": KeioScraper(), "name": "慶應義塾大学", "name_en": "Keio University", "url": "https://www.keio.ac.jp/ja/", "logo": ""},
-            {"scraper": TMUScraper(), "name": "東京都立大学", "name_en": "Tokyo Metropolitan University", "url": "https://www.tmu.ac.jp/", "logo": ""}
-        ]
+        config_path = os.path.join(os.path.dirname(__file__), 'universities.json')
+        if not os.path.exists(config_path):
+            print(f"Error: Configuration file {config_path} not found.")
+            return
+            
+        with open(config_path, 'r', encoding='utf-8') as f:
+            universities_config = json.load(f)
 
-        for entry in scrapers_registry:
-            scraper = entry["scraper"]
-            uni_model = setup_university(db, entry["name"], entry["name_en"], entry["url"], entry["logo"])
+        for config in universities_config:
+            scraper = AgenticScraper(
+                university_name=config["name"],
+                base_url=config["base_url"],
+                start_urls=config["start_urls"],
+                db=db # Pass DB session for fingerprinting
+            )
+            uni_model = setup_university(db, config["name"], config["name_en"], config["url"], "")
             
             print(f"=====================================")
-            print(f"Scraping {entry['name']}...")
+            print(f"Scraping {config['name']} with Agentic Playwright Scraper...")
             news_list = scraper.scrape_latest_news()
-            print(f"Found {len(news_list)} news items.")
+            
+            if not news_list:
+                print(f"No new candidate links to process for {config['name']}.")
+                continue
+                
+            print(f"Found {len(news_list)} candidate links via LLM Navigator.")
             
             for item in news_list:
                 existing = db.query(domain.RawNews).filter(domain.RawNews.url == item["url"]).first()
@@ -81,7 +71,7 @@ def run_all_tasks():
                     print(f"Skipping article due to LLM pipeline error: {e}")
                     continue
                 
-                if processed_data:
+                if processed_data and processed_data.get("is_relevant", True):
                     new_raw = domain.RawNews(
                         university_id=uni_model.id,
                         source_type="website",
@@ -93,13 +83,17 @@ def run_all_tasks():
                     
                     new_processed = domain.ProcessedInfo(
                         raw_news_id=new_raw.id,
-                        category=processed_data["category"],
-                        summary=processed_data["summary"],
-                        important_dates=processed_data["important_dates"]
+                        category=processed_data.get("category", "其他"),
+                        summary=processed_data.get("summary", "暂无摘要"),
+                        important_dates=processed_data.get("important_dates_text", ""),
+                        published_at=processed_data.get("published_at", ""),
+                        target_faculties=json.dumps(processed_data.get("target_faculties", []), ensure_ascii=False),
+                        timeline_events=json.dumps(processed_data.get("timeline", []), ensure_ascii=False),
+                        exam_requirements=json.dumps(processed_data.get("exam_requirements", {}), ensure_ascii=False)
                     )
                     db.add(new_processed)
                     db.commit()
-                    print(f"Saved: {item['title']} - Category: {processed_data['category']}")
+                    print(f"Saved: {item['title']} - Category: {processed_data.get('category', '其他')}")
                 else:
                     print(f"Article ignored by LLM (irrelevant): {item['title']}")
                     

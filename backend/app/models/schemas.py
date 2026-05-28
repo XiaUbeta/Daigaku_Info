@@ -22,6 +22,10 @@ class ProcessedInfoBase(BaseModel):
     category: str
     summary: str
     important_dates: Optional[str] = None
+    target_faculties: Optional[str] = None
+    timeline_events: Optional[str] = None
+    exam_requirements: Optional[str] = None
+    published_at: Optional[str] = None
 
 class RawNewsBase(BaseModel):
     source_type: str

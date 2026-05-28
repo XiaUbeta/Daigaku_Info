@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func, case
 from typing import List
 
 from app.core.database import get_db
@@ -37,8 +38,22 @@ def read_processed_news(
     if category:
         query = query.filter(domain.ProcessedInfo.category == category)
         
-    # Order by scraped time descending
-    query = query.order_by(domain.RawNews.scraped_at.desc())
+    # Order by official published date descending. 
+    # If published_at is '不明' or null, fallback to scraped_at for the sort key.
+    # We sort primarily by the calculated date (either published or scraped)
+    effective_date = case(
+        (
+            (
+                (domain.ProcessedInfo.published_at == '不明') | 
+                (domain.ProcessedInfo.published_at == None) | 
+                (domain.ProcessedInfo.published_at == '')
+            ),
+            func.to_char(domain.RawNews.scraped_at, 'YYYY/MM/DD')
+        ),
+        else_=domain.ProcessedInfo.published_at
+    )
+    
+    query = query.order_by(effective_date.desc())
     
     news = query.offset(skip).limit(limit).all()
     return news

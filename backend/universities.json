@@ -1,0 +1,163 @@
+[
+  {
+    "name": "北海道大学",
+    "name_en": "北海道大学",
+    "url": "https://www.hokudai.ac.jp",
+    "base_url": "https://www.hokudai.ac.jp",
+    "start_urls": [
+      "https://www.hokudai.ac.jp/admission/admission-info/",
+      "https://www.oia.hokudai.ac.jp/cier/news/"
+    ]
+  },
+  {
+    "name": "大阪大学",
+    "name_en": "大阪大学",
+    "url": "https://www.osaka-u.ac.jp",
+    "base_url": "https://www.osaka-u.ac.jp",
+    "start_urls": [
+      "https://www.osaka-u.ac.jp/ja/admissions/faculty/expense",
+      "https://www.osaka-u.ac.jp/ja/news/topics"
+    ]
+  },
+  {
+    "name": "电气通信大学",
+    "name_en": "电气通信大学",
+    "url": "https://www.uec.ac.jp",
+    "base_url": "https://www.uec.ac.jp",
+    "start_urls": [
+      "https://www.uec.ac.jp/news/admission/",
+      "https://www.uec.ac.jp/news/prospect/",
+      "https://www.uec.ac.jp/education/undergraduate/event/opencampus.html",
+      "https://www.uec.ac.jp/education/undergraduate/admission/senbatsu_type.html"
+    ]
+  },
+  {
+    "name": "东北大学",
+    "name_en": "东北大学",
+    "url": "https://www.tohoku.ac.jp",
+    "base_url": "https://www.tohoku.ac.jp",
+    "start_urls": [
+      "https://www.tohoku.ac.jp/japanese/2026/",
+      "https://www.tohoku.ac.jp/japanese/2026/cate_news/",
+      "https://www.tohoku.ac.jp/japanese/rss/cate_tar_learn/index.xml",
+      "https://admissions.tohoku.ac.jp/ja/entrance-info/undergraduate-info/admissions_sp/"
+    ]
+  },
+  {
+    "name": "东京大学",
+    "name_en": "东京大学",
+    "url": "https://www.u-tokyo.ac.jp",
+    "base_url": "https://www.u-tokyo.ac.jp",
+    "start_urls": [
+      "https://www.u-tokyo.ac.jp/ja/admissions/undergraduate/e01_06_01.html",
+      "https://www.u-tokyo.ac.jp/focus/ja/index.html",
+      "https://www.u-tokyo.ac.jp/ja/admissions/undergraduate/e01_02_04.html"
+    ]
+  },
+  {
+    "name": "东京都立大学",
+    "name_en": "东京都立大学",
+    "url": "https://www.tmu.ac.jp",
+    "base_url": "https://www.tmu.ac.jp",
+    "start_urls": [
+      "https://www.tmu.ac.jp/news.html?parent=1729",
+      "https://www.tmu.ac.jp/entrance/faculty/application_guideline.html"
+    ]
+  },
+  {
+    "name": "东京科学大学",
+    "name_en": "东京科学大学",
+    "url": "https://admissions.isct.ac.jp",
+    "base_url": "https://admissions.isct.ac.jp",
+    "start_urls": [
+      "https://admissions.isct.ac.jp/ja/news",
+      "https://admissions.isct.ac.jp/ja/news?tab=94",
+      "https://admissions.isct.ac.jp/ja/013/undergraduate"
+    ]
+  },
+  {
+    "name": "东京农工大学",
+    "name_en": "东京农工大学",
+    "url": "https://www.tuat.ac.jp",
+    "base_url": "https://www.tuat.ac.jp",
+    "start_urls": [
+      "https://www.tuat.ac.jp/admission/nyushi_gakubu/info/",
+      "https://www.tuat.ac.jp/admission/nyushi_gakubu/youkou/"
+    ]
+  },
+  {
+    "name": "横滨国立大学",
+    "name_en": "横滨国立大学",
+    "url": "https://www.ynu.ac.jp",
+    "base_url": "https://www.ynu.ac.jp",
+    "start_urls": [
+      "https://www.ynu.ac.jp/exam/faculty/",
+      "https://www.ynu.ac.jp/news_center/"
+    ]
+  },
+  {
+    "name": "京都大学",
+    "name_en": "京都大学",
+    "url": "https://www.kyoto-u.ac.jp",
+    "base_url": "https://www.kyoto-u.ac.jp",
+    "start_urls": [
+      "https://www.kyoto-u.ac.jp/ja/international/students1/study1/undergraduate/addmissions",
+      "https://www.kyoto-u.ac.jp/ja/news?audience=45&target%5B45%5D=45",
+      "https://www.kyoto-u.ac.jp/ja/event?audience=45&target%5B45%5D=45"
+    ]
+  },
+  {
+    "name": "名古屋大学",
+    "name_en": "名古屋大学",
+    "url": "https://www.nagoya-u.ac.jp",
+    "base_url": "https://www.nagoya-u.ac.jp",
+    "start_urls": [
+      "https://www.nagoya-u.ac.jp/admissions/exam/us-exam/cat2/",
+      "https://www.nagoya-u.ac.jp/admissions/news/index.html"
+    ]
+  },
+  {
+    "name": "千叶大学",
+    "name_en": "千叶大学",
+    "url": "https://www.chiba-u.jp",
+    "base_url": "https://www.chiba-u.jp",
+    "start_urls": [
+      "https://www.chiba-u.jp/news/exam/2026/",
+      "https://www.chiba-u.jp/event/index.html",
+      "https://www.f-eng.chiba-u.jp/admission/information.html",
+      "https://informatics.chiba-u.jp/admission/undergraduate.html"
+    ]
+  },
+  {
+    "name": "庆应义塾大学",
+    "name_en": "庆应义塾大学",
+    "url": "https://www.keio.ac.jp",
+    "base_url": "https://www.keio.ac.jp",
+    "start_urls": [
+      "https://www.keio.ac.jp/ja/admissions/faculty/news/",
+      "https://www.keio.ac.jp/ja/admissions/faculty/examinations/international-student/"
+    ]
+  },
+  {
+    "name": "筑波大学",
+    "name_en": "筑波大学",
+    "url": "https://ac.tsukuba.ac.jp",
+    "base_url": "https://ac.tsukuba.ac.jp",
+    "start_urls": [
+      "https://ac.tsukuba.ac.jp/news/category/info/",
+      "https://ac.tsukuba.ac.jp/news/category/info/info_exam/",
+      "https://ac.tsukuba.ac.jp/apply/application-guidelines/"
+    ]
+  },
+  {
+    "name": "早稻田",
+    "name_en": "早稻田",
+    "url": "https://www.waseda.jp",
+    "base_url": "https://www.waseda.jp",
+    "start_urls": [
+      "https://www.waseda.jp/inst/admission/news/",
+      "https://www.waseda.jp/inst/admission/visiting/",
+      "https://www.waseda.jp/inst/admission/undergraduate/system/international/"
+    ]
+  }
+]

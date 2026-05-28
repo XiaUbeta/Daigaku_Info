@@ -2,7 +2,7 @@ import json
 from openai import OpenAI
 from app.core.config import settings
 
-class MultiAgentPipeline:
+class SingleAgentPipeline:
     def __init__(self):
         # Configure client to support both standard OpenAI and compatible endpoints
         client_kwargs = {
@@ -11,12 +11,11 @@ class MultiAgentPipeline:
         if settings.OPENAI_BASE_URL:
             client_kwargs["base_url"] = settings.OPENAI_BASE_URL
             
-        # Explicitly use a fresh client to avoid potential proxy argument conflicts in some environments
         self.client = OpenAI(**client_kwargs)
-        # We can change the model name via env or keep a default suitable for Siliconflow/OpenAI
-        self.model = "gpt-4o-mini" if not settings.OPENAI_BASE_URL else "deepseek-ai/DeepSeek-V4-Flash"
+        # 使用 Siliconflow 提供的确切模型名称
+        self.model = "deepseek-ai/DeepSeek-V4-Pro" if settings.OPENAI_BASE_URL else "gpt-4o-mini"
 
-    def _call_llm(self, system_prompt: str, user_prompt: str, json_mode: bool = False) -> str:
+    def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
@@ -25,98 +24,93 @@ class MultiAgentPipeline:
         kwargs = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.2,
-            "timeout": 30.0, # Add 30s timeout
+            "temperature": 0.1, # 低温度保证结构化输出的稳定性
+            "response_format": {"type": "json_object"}, # 强制模型返回 JSON
+            "timeout": 180.0, # 增加到 180 秒，防止大模型长上下文超时
         }
         
-        try:
-            print(f"  [LLM] Calling {self.model}...")
-            response = self.client.chat.completions.create(**kwargs)
-            return response.choices[0].message.content.strip()
-        except Exception as e:
-            print(f"  [LLM] Error: {e}")
-            if "Timeout" in str(e) or "timed out" in str(e):
-                return "{}" if json_mode else ""
-            raise e
+        import time
+        for attempt in range(2):
+            try:
+                print(f"  [LLM] Calling {self.model} (Attempt {attempt+1}/2)...")
+                response = self.client.chat.completions.create(**kwargs)
+                raw_content = response.choices[0].message.content.strip()
+                print(f"  [LLM Debug] Raw Response:\n{raw_content}\n" + "-"*40)
+                return raw_content
+            except Exception as e:
+                print(f"  [LLM] Error: {e}")
+                if attempt == 1:
+                    return "{}"
+                print("  [LLM] Retrying in 3 seconds...")
+                time.sleep(3)
 
-    def router_agent(self, text: str) -> dict:
+    def navigator_agent(self, list_page_markdown: str, max_links: int = 15) -> dict:
         """
-        Determines if the text is relevant and categorizes it.
+        Takes the markdown of a news list page and extracts relevant news links.
         """
-        system_prompt = """
-        你是一个专门为【日本私费外国留学生（学部考学）】筛选升学情报的专家。
-        阅读用户提供的日文新闻文本，判断其是否对外国留学生有价值。
+        system_prompt = f"""
+        你是一个专门为【2027年入学的日本私费外国留学生】寻找升学情报的网页导航助手。
+        以下是一个大学官网的新闻列表页或入试首页的文本（转换为Markdown格式，包含大量链接）。
         
-        【必须接收】的条件（满足其一即可）：
-        1. 明确提及「私費外国人留学生」、「留学生入試」、「EJU」相关的出愿情报、变更或通知。
-        2. 属于面向所有考生的「Open Campus (オープンキャンパス)」、「进学说明会/相谈会 (進学説明会/相談会)」、「体验讲座」等公开活动。
-
-        【必须拒绝】的条件（判断为“无关”）：
-        1. 仅限日本国内高中生的常规考试（如：一般選抜、共通テスト、学校推薦型選抜、総合型選抜，且未明确表明留学生可用）。
-        2. 与学部升学完全无关的日常新闻（如：教授获奖、放假通知、在校生社团活动、大学院/研究生院入试）。
+        你的任务是：找出所有可能属于“入试通知”、“学部募集”、“留学生考试”、“Open Campus”等与考学直接相关的文章链接。
+        忽略无关日常新闻（如教授获奖、社团活动、放假通知），以及不符合时间的新闻。
         
-        请严格以JSON格式输出，不要包含任何其他文字或Markdown标记，格式如下：
-        {
-            "is_relevant": true/false,
-            "category": "出愿情报" | "Open Campus" | "讲座" | "变更" | "其他" | "无关"
-        }
+        请严格输出 JSON 格式，包含一个名为 `urls` 的数组，数组中每个元素是一个对象，包含 `title` 和 `url`。
+        最多提取 {max_links} 个最重要的链接。
+        {{
+            "urls": [
+                {{"title": "文章标题", "url": "链接地址"}}
+            ]
+        }}
+        确保返回的数据可以直接被 json.loads 解析。
         """
         
-        result_str = self._call_llm(system_prompt, text)
+        # 截断以防止超出 token 限制
+        truncated_markdown = list_page_markdown[:20000]
+        result_str = self._call_llm(system_prompt, truncated_markdown)
         try:
-            # Clean up markdown if model outputs it
             if result_str.startswith("```json"):
-                result_str = result_str.replace("```json\n", "").replace("```", "")
-            return json.loads(result_str)
+                result_str = result_str.replace("```json\n", "").replace("```", "").strip()
+            data = json.loads(result_str)
+            return data.get("urls", [])
         except json.JSONDecodeError:
-            return {"is_relevant": False, "category": "解析失败"}
-
-    def extractor_agent(self, text: str) -> str:
-        """
-        Extracts key facts and dates from relevant text.
-        """
-        system_prompt = """
-        你是一个情报提取专家。请从以下日文大学通知中提取出关键的“时间节点（Event Dates, Deadlines）”和“具体事项/前因后果”。
-        要求：
-        1. 保持时间信息的准确性。
-        2. 用简洁的列表形式呈现提取出的事实。
-        3. 尽量使用中文进行记录。
-        """
-        return self._call_llm(system_prompt, text)
-
-    def summarizer_agent(self, extracted_facts: str) -> str:
-        """
-        Creates a strict 100-word summary from extracted facts.
-        """
-        system_prompt = """
-        你是一个精炼的新闻编辑。基于用户提供的提取信息，撰写一段高度概括的中文摘要。
-        要求：
-        1. 语感专业、客观。
-        2. 字数严格限制在100字左右。
-        3. 必须包含最重要的时间节点和核心事件。
-        """
-        return self._call_llm(system_prompt, extracted_facts)
+            print(f"  [LLM Navigator] JSON Decode Error. Raw output: {result_str}")
+            return []
 
     def process_news(self, raw_text: str) -> dict:
         """
-        The main pipeline integrating all agents.
+        The upgraded single-shot pipeline using DeepSeek for structured output.
         """
-        # Step 1: Route
-        route_decision = self.router_agent(raw_text)
-        if not route_decision.get("is_relevant"):
-            return None
-            
-        # Step 2: Extract
-        extracted_facts = self.extractor_agent(raw_text)
+        system_prompt = """
+        你是一个专门为【日本私费外国留学生（学部考学）】筛选并提取升学情报的专家。
+        阅读用户提供的日文网页文本，首先判断其是否对外国留学生考学部有价值（比如留学生入试出愿、制度变更、Open Campus等；排除国内高中生常规入试、大学院入试、日常无关新闻）。
         
-        # Step 3: Summarize
-        summary = self.summarizer_agent(extracted_facts)
-        
-        # Final formatting
-        return {
-            "category": route_decision.get("category", "其他"),
-            "summary": summary,
-            "important_dates": extracted_facts
+        请严格输出 JSON 格式，包含以下字段：
+        {
+            "is_relevant": true 或 false,
+            "category": "出愿情报" | "制度变更" | "Open Campus" | "讲座" | "合格发表" | "其他",
+            "published_at": "YYYY/MM/DD", // 提取新闻发布日期。如果网页中完全没写日期，请填写"不明"
+            "target_faculties": ["学部名1", "学部名2"], // 若全校通用填 ["全学部"]
+            "timeline": [
+                {"event_name": "事件名称(如出願開始)", "date_str": "YYYY/MM/DD", "is_deadline": true 或 false}
+            ],
+            "exam_requirements": {"EJU": "...", "TOEFL": "..."}, // 提取考试要求，若无则填 {}
+            "summary": "一句话中文极简摘要，不超过50字",
+            "important_dates_text": "将提取的时间线整理成一段简练的中文文本说明（用于兼容前端展示）"
         }
+        确保返回的数据可以直接被 json.loads 解析，不要包含任何 markdown 代码块标记。
+        """
+        
+        result_str = self._call_llm(system_prompt, raw_text)
+        try:
+            # Clean up potential markdown formatting just in case
+            if result_str.startswith("```json"):
+                result_str = result_str.replace("```json\n", "").replace("```", "").strip()
+            data = json.loads(result_str)
+            return data
+        except json.JSONDecodeError:
+            print(f"  [LLM] JSON Decode Error. Raw output: {result_str}")
+            return None
 
-llm_pipeline = MultiAgentPipeline()
+# Replace old MultiAgentPipeline with the new SingleAgentPipeline
+llm_pipeline = SingleAgentPipeline()

@@ -24,7 +24,15 @@ const getCategoryColor = (category: string) => {
 };
 
 export const NewsCard: React.FC<NewsCardProps> = ({ info, university }) => {
-  const publishedDate = format(parseISO(info.raw_news.scraped_at), 'yyyy-MM-dd HH:mm');
+  // Use official published date if available, otherwise fallback to scraped date
+  const isDateUnknown = !info.published_at || info.published_at === '不明';
+  const scrapedDate = format(parseISO(info.raw_news.scraped_at), 'yyyy-MM-dd');
+  
+  const publishedDate = isDateUnknown 
+    ? `不明，抓取时间：${scrapedDate}`
+    : (info.published_at!.includes('T') ? format(parseISO(info.published_at!), 'yyyy-MM-dd') : info.published_at);
+
+  const targetFaculties = info.target_faculties ? JSON.parse(info.target_faculties) : [];
 
   return (
     <div className="bg-white rounded-lg border-2 border-gray-100 p-4 hover:border-primary/30 transition-colors">
@@ -43,6 +51,13 @@ export const NewsCard: React.FC<NewsCardProps> = ({ info, university }) => {
       </div>
 
       <div className="mb-4">
+        <div className="flex flex-wrap gap-1 mb-2">
+          {targetFaculties.map((faculty: string, idx: number) => (
+            <span key={idx} className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100 font-bold">
+              {faculty}
+            </span>
+          ))}
+        </div>
         <p className="text-gray-900 leading-snug font-medium text-base">
           {info.summary}
         </p>
