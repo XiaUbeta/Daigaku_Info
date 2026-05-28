@@ -1,7 +1,7 @@
 import React from 'react';
 import type { ProcessedInfo, University } from '../types';
 import { format, parseISO } from 'date-fns';
-import { ExternalLink, Calendar, Building2, Tag } from 'lucide-react';
+import { ExternalLink, Calendar } from 'lucide-react';
 
 interface NewsCardProps {
   info: ProcessedInfo;
