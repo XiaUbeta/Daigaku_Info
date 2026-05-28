@@ -36,7 +36,7 @@ RUN echo 'server { \
     \
     # Optional: proxy /api requests directly to the backend service \
     location /api/ { \
-        proxy_pass http://api:8000/; \
+        proxy_pass http://api:8000; \
         proxy_set_header Host $host; \
         proxy_set_header X-Real-IP $remote_addr; \
     } \
