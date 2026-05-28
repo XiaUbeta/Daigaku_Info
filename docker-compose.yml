@@ -2,16 +2,52 @@ version: '3.8'
 
 services:
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: postgrespassword
       POSTGRES_DB: info_db
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  api:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/info_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_api_key_here}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.siliconflow.cn/v1}
+    depends_on:
+      - db
+    restart: always
+
+  scheduler:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python scheduler.py
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/info_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_api_key_here}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://api.siliconflow.cn/v1}
+    depends_on:
+      - db
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
     restart: always
 
 volumes:
-  postgres_data:
+  pgdata:
