@@ -21,15 +21,15 @@ class AgenticScraper:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
         
-    def _is_page_changed(self, url: str) -> bool:
+    def _check_page_change(self, url: str):
         """
-        Performs a lightweight request to check if the page's structure/text has changed
-        compared to the last known hash in the database.
+        Performs a lightweight request to check if the page's structure/text has changed.
+        Returns a tuple: (is_changed, current_hash, fingerprint_record)
         """
         try:
             response = requests.get(url, headers=self.headers, timeout=10)
             if response.status_code != 200:
-                return True # If it fails, assume we need to force a full playwright check
+                return True, None, None # Force scrape
                 
             response.encoding = response.apparent_encoding
             clean_md = clean_html_to_markdown(response.text, base_url=self.base_url)
@@ -39,25 +39,14 @@ class AgenticScraper:
             
             if fingerprint and fingerprint.content_hash == current_hash:
                 print(f"  [{self.university_name}] Hash matched for {url}. Skipping (No changes).")
-                # Update last checked time
-                fingerprint.last_checked_at = datetime.datetime.utcnow()
-                self.db.commit()
-                return False
+                return False, current_hash, fingerprint
                 
-            # If changed or new, update the fingerprint table
             print(f"  [{self.university_name}] Changes detected for {url}. Proceeding to deep scrape.")
-            if fingerprint:
-                fingerprint.content_hash = current_hash
-                fingerprint.last_checked_at = datetime.datetime.utcnow()
-            else:
-                new_fingerprint = PageFingerprint(url=url, content_hash=current_hash)
-                self.db.add(new_fingerprint)
-            self.db.commit()
-            return True
+            return True, current_hash, fingerprint
             
         except Exception as e:
             print(f"  [{self.university_name}] Lightweight pre-check failed for {url}: {e}")
-            return True # Fallback to full scrape on error
+            return True, None, None
 
     def scrape_latest_news(self) -> list:
         """
@@ -67,36 +56,42 @@ class AgenticScraper:
         news_items = []
         seen_urls = set()
         
-        urls_to_scrape = [url for url in self.start_urls if self._is_page_changed(url)]
+        # Determine which URLs need scraping and keep track of their hashes
+        urls_to_process = []
+        for url in self.start_urls:
+            is_changed, current_hash, fingerprint = self._check_page_change(url)
+            if is_changed:
+                urls_to_process.append((url, current_hash, fingerprint))
+            else:
+                # If not changed, we can safely just update the last_checked_at time
+                if fingerprint:
+                    fingerprint.last_checked_at = datetime.datetime.utcnow()
+                    self.db.commit()
         
-        if not urls_to_scrape:
+        if not urls_to_process:
             return []
             
         with sync_playwright() as p:
-            # Use chromium, headless mode
             browser = p.chromium.launch(headless=True)
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 viewport={'width': 1280, 'height': 800}
             )
             
-            for url in urls_to_scrape:
+            for url, current_hash, fingerprint in urls_to_process:
                 try:
                     print(f"  [{self.university_name}] Playwright Navigating to: {url}")
                     page = context.new_page()
-                    # Wait for network to be mostly idle to ensure JS renders
                     page.goto(url, wait_until="networkidle", timeout=30000)
                     
                     html_content = page.content()
                     page.close()
                     
-                    # Convert to Markdown for LLM
                     markdown_content = clean_html_to_markdown(html_content, base_url=self.base_url)
                     
                     if not markdown_content:
                         continue
                         
-                    # Let LLM Navigator find the links
                     print(f"  [{self.university_name}] Analyzing links with LLM Navigator...")
                     discovered_links = llm_pipeline.navigator_agent(markdown_content)
                     
@@ -107,16 +102,25 @@ class AgenticScraper:
                         if not link_url or link_url in seen_urls:
                             continue
                             
-                        # Basic sanity check
                         if link_url.endswith(".pdf") or link_url.startswith("#") or "javascript" in link_url:
                             continue
                             
                         news_items.append({"title": link_title, "url": link_url})
                         seen_urls.add(link_url)
                         
+                    # If we reached here without LLM exceptions, it is safe to commit the new hash!
+                    if current_hash:
+                        if fingerprint:
+                            fingerprint.content_hash = current_hash
+                            fingerprint.last_checked_at = datetime.datetime.utcnow()
+                        else:
+                            new_fingerprint = PageFingerprint(url=url, content_hash=current_hash)
+                            self.db.add(new_fingerprint)
+                        self.db.commit()
+                        
                 except Exception as e:
-                    print(f"  [{self.university_name}] Playwright Error on {url}: {e}")
-                    # traceback.print_exc()
+                    print(f"  [{self.university_name}] Playwright/LLM Error on {url}: {e}")
+                    # We DO NOT commit the hash if an error occurs, so it will retry next time.
             
             browser.close()
             
